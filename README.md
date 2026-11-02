@@ -1,5 +1,7 @@
 # Slouch Detector
 
+![Slouch Detector: your webcam notices when you slouch and gives you a nudge to sit up straight](docs/banner.png)
+
 A small Windows app that watches your posture through your webcam and reminds you to sit up straight when you've been slouching for a while.
 
 It runs quietly in the background with a little spirit-level icon next to the clock. You don't need a browser window open.
@@ -9,6 +11,15 @@ It runs quietly in the background with a little spirit-level icon next to the cl
 - Waits as long as you choose (10 seconds to 5 minutes) before reminding you, so shifting in your chair doesn't set it off.
 - Lets go of the camera between checks, so Teams, Zoom and other apps can still use it.
 - Everything happens on your computer. No video or images ever leave it.
+
+The settings page works like a spirit level. The bubble stays between the marks while you sit straight and drifts out as you slouch:
+
+<table>
+  <tr>
+    <td><img src="docs/good.png" alt="Settings page showing a green level with the bubble centred: Sitting straight"></td>
+    <td><img src="docs/slouch.png" alt="Settings page showing an amber level with the bubble past the mark: Slouching, reminder in 8 seconds"></td>
+  </tr>
+</table>
 
 ## Install
 
@@ -32,17 +43,19 @@ The settings page opens in your browser.
 2. Sit up tall with relaxed shoulders, looking at your screen as you normally would.
 3. Press **Save my good posture** and hold still for a moment.
 
+![Saving your good posture: the camera preview shows dots on the head and shoulders while the button fills up](docs/setup.png)
+
 That's it. You can close the page. Slouch Detector keeps running from the icon near the clock (click the **^** arrow if you don't see it).
 
 ## Everyday use
 
 The tray icon shows how you're doing:
 
-| Icon colour | Meaning |
+| Icon | Meaning |
 |---|---|
-| Green | Sitting straight |
-| Amber | Slouching |
-| Grey | Paused, starting up, or it can't see you |
+| <img src="docs/icon-good.png" width="32" alt="Green level icon"> | Sitting straight |
+| <img src="docs/icon-slouching.png" width="32" alt="Amber level icon"> | Slouching |
+| <img src="docs/icon-paused.png" width="32" alt="Grey level icon"> | Paused, starting up, or it can't see you |
 
 - **Click the icon** to open the settings page.
 - **Right-click the icon** to **Pause** or **Quit**.
@@ -50,6 +63,8 @@ The tray icon shows how you're doing:
 - After **Quit**, start it again from the Start menu or the desktop shortcut.
 
 ## Settings
+
+<img src="docs/settings.png" width="640" alt="The settings: camera position, reminder delay, pop-up or ping sound, pickiness, and start with Windows">
 
 | Setting | What it does |
 |---|---|
