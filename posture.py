@@ -30,6 +30,7 @@ DATA.mkdir(parents=True, exist_ok=True)
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
 MODEL = DATA / "pose_landmarker_full.task"
 SETTINGS = DATA / "settings.json"
+HISTORY = DATA / "history.json"
 PAGE = HERE / "settings.html"
 ICON = DATA / "slouch.ico"
 PING = DATA / "ping.wav"
@@ -77,6 +78,30 @@ def load_settings():
 
 def save_settings(cfg):
     SETTINGS.write_text(json.dumps(cfg, indent=2))
+
+
+def load_history():
+    try:
+        return json.loads(HISTORY.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def save_history(history):
+    HISTORY.write_text(json.dumps(history))
+
+
+def record(history, when, kind, seconds=0):
+    """Add to the day's totals. kind: "straight" / "slouch" (seconds) or "reminder" (a count)."""
+    t = time.localtime(when)
+    day = history.setdefault(time.strftime("%Y-%m-%d", t),
+                             {"straight": 0, "slouch": 0, "reminders": 0, "slouch_by_hour": [0] * 24})
+    if kind == "reminder":
+        day["reminders"] += 1
+    else:
+        day[kind] += seconds
+        if kind == "slouch":
+            day["slouch_by_hour"][t.tm_hour] += seconds
 
 
 def clean(new, cfg):
@@ -177,7 +202,7 @@ def grab(index):
         cap.release()
 
 
-def make_handler(cfg, state, wake, on_change, alert):
+def make_handler(cfg, state, wake, on_change, alert, history, lock):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # pythonw has no stderr
@@ -205,6 +230,10 @@ def make_handler(cfg, state, wake, on_change, alert):
             elif path == "/state":
                 public = {k: v for k, v in state.items() if k not in ("jpeg", "page_seen")}
                 self.send(json.dumps(cfg | public | {"autostart": autostart_enabled()}).encode(), "application/json")
+            elif path == "/history":
+                with lock:
+                    recent_days = {d: history[d] for d in sorted(history)[-14:]}
+                self.send(json.dumps({"today": time.strftime("%Y-%m-%d"), "days": recent_days}).encode(), "application/json")
             elif path == "/frame.jpg" and state["jpeg"]:
                 self.send(state["jpeg"], "image/jpeg")
             else:
@@ -238,7 +267,7 @@ def make_handler(cfg, state, wake, on_change, alert):
     return Handler
 
 
-def detect_loop(cfg, state, wake, tray):
+def detect_loop(cfg, state, wake, tray, history, lock):
     import cv2
     import mediapipe as mp
     from mediapipe.tasks.python import BaseOptions, vision
@@ -270,13 +299,14 @@ def detect_loop(cfg, state, wake, tray):
     cap = cap_index = None
     calibration = []
     slouch_since = None
+    last_tick, last_save = None, time.time()
     recent = collections.deque(maxlen=3)  # median of last few readings smooths out single-frame glitches
     while True:
         if state["paused"]:
             if cap:
                 cap.release()
                 cap = None
-            state["jpeg"], slouch_since = None, None
+            state["jpeg"], slouch_since, last_tick = None, None, None
             show("Paused")
             wake.wait()
             wake.clear()
@@ -319,6 +349,7 @@ def detect_loop(cfg, state, wake, tray):
             recent.append(raw)
         score = statistics.median(recent) if recent else None
         now = time.time()
+        kind = None  # what this check counts towards in the progress stats
         if frame is None:
             slouch_since = None
             show("Camera unavailable")
@@ -330,15 +361,28 @@ def detect_loop(cfg, state, wake, tray):
         else:
             ratio = slouch_ratio(score, cfg["baseline"], cfg["view"], cfg["tolerance"])
             if ratio <= 1:
-                slouch_since = None
+                slouch_since, kind = None, "straight"
                 show("Sitting straight", "good", ratio)
             else:
-                slouch_since = slouch_since or now
+                slouch_since, kind = slouch_since or now, "slouch"
                 show("Slouching", "bad", ratio)
                 if now - slouch_since >= cfg["seconds"]:
                     tray.alert()
+                    with lock:
+                        record(history, now, "reminder")
                     slouch_since = now  # nag again only after another full stretch of slouching
         state["slouching_for"] = 0 if slouch_since is None else now - slouch_since
+
+        # Progress: time since the last counted check goes to this check's state. Gaps (away, camera busy,
+        # PC asleep) aren't counted, and a single step is capped so a long stall can't inflate the totals.
+        if kind and last_tick:
+            with lock:
+                record(history, now, kind, min(now - last_tick, cfg["interval"] * 2 + 2))
+        last_tick = now if kind else None
+        if now - last_save > 60:
+            with lock:
+                save_history(history)
+            last_save = now
         print(f"{time.strftime('%X')} raw={raw} score={score} {state['status']}")
         wake.wait(0.05 if live else cfg["interval"])  # page activity / settings changes wake us early
         wake.clear()
@@ -350,6 +394,7 @@ def main():
     state = {"status": "Starting…", "level": "", "ratio": None, "slouching_for": 0, "paused": False,
              "calibrating": False, "progress": 0, "jpeg": None, "page_seen": 0}
     wake = threading.Event()
+    history, lock = load_history(), threading.Lock()
     open_page = lambda *_: webbrowser.open(URL)
     try:
         server = ThreadingHTTPServer(("127.0.0.1", PORT), None)
@@ -363,10 +408,15 @@ def main():
         state["paused"] = not state["paused"]
         wake.set()
 
+    def quit_app(*_):
+        with lock:
+            save_history(history)
+        icon.stop()
+
     icon = pystray.Icon("SlouchDetector", icon_image(""), "Slouch Detector", pystray.Menu(
         pystray.MenuItem("Open Slouch Detector", open_page, default=True),
         pystray.MenuItem("Pause", toggle_pause, checked=lambda _: state["paused"]),
-        pystray.MenuItem("Quit", lambda *_: icon.stop()),
+        pystray.MenuItem("Quit", quit_app),
     ))
     last_level = [""]
 
@@ -385,13 +435,13 @@ def main():
             icon.notify("You've been slouching for a while.", "Time to sit up straight")
     tray.alert = alert
 
-    server.RequestHandlerClass = make_handler(cfg, state, wake, icon.update_menu, alert)
+    server.RequestHandlerClass = make_handler(cfg, state, wake, icon.update_menu, alert, history, lock)
     server.daemon_threads = True
 
     def setup(icon):
         icon.visible = True
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        threading.Thread(target=detect_loop, args=(cfg, state, wake, tray), daemon=True).start()
+        threading.Thread(target=detect_loop, args=(cfg, state, wake, tray, history, lock), daemon=True).start()
         if not background or cfg["baseline"] is None:
             open_page()
 
@@ -411,6 +461,11 @@ def selftest():
     assert math.isclose(measure(side, "side", 1.0), -45)
     assert slouch_ratio(1.2, 1.5, "front", 12) > 1 > slouch_ratio(1.4, 1.5, "front", 12)
     assert math.isclose(slouch_ratio(1.5, 1.5, "front", 12), 0)
+    # progress: seconds land on the right day and hour, reminders are counted
+    h, t = {}, time.mktime((2026, 11, 2, 15, 30, 0, 0, 0, -1))
+    record(h, t, "straight", 3); record(h, t, "slouch", 5); record(h, t, "slouch", 2); record(h, t, "reminder")
+    assert h["2026-11-02"]["straight"] == 3 and h["2026-11-02"]["slouch"] == 7 and h["2026-11-02"]["reminders"] == 1
+    assert h["2026-11-02"]["slouch_by_hour"][15] == 7 and sum(h["2026-11-02"]["slouch_by_hour"]) == 7
     assert slouch_ratio(-20, -5, "side", 10) > 1 > slouch_ratio(-12, -5, "side", 10)
     front[0].visibility = 0.1
     assert measure(front, "front", 1.0) is None

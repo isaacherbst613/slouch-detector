@@ -11,6 +11,7 @@
     --bg: #E9EDF1; --panel: #F7F9FA; --line: #CDD5DD; --ink: #1F2A36; --muted: #5B6B7B;
     --fluid: #C8DC3A; --fluid-deep: #A9BF1F; --amber: #E8A33D; --amber-deep: #C9821B; --off: #B9C3CC;
     --glass: rgba(255,255,255,.55); --focus: #2F6FDE;
+    --bar-good: #7E9010; --bar-bad: #B26F12; --good-ink: #5A6A08; --bad-ink: #94570A;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -18,6 +19,7 @@
       --bg: #1A2027; --panel: #232B34; --line: #36414D; --ink: #E7ECF1; --muted: #9DABB8;
       --fluid: #B5CC2E; --fluid-deep: #93A81A; --amber: #E8A33D; --amber-deep: #B87612; --off: #4A5560;
       --glass: rgba(255,255,255,.18); --focus: #7FA8F5;
+      --bar-good: #A9BF1F; --bar-bad: #E8A33D; --good-ink: #C8DC3A; --bad-ink: #F0B45E;
       color-scheme: dark;
     }
   }
@@ -120,6 +122,35 @@
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--ink); color: var(--bg);
            padding: 10px 18px; border-radius: 12px; font-weight: 700; transition: opacity .2s, transform .2s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* progress */
+  .progress { margin-top: 20px; }
+  .progress h3 { font: 700 1.05rem "Bricolage Grotesque", system-ui, sans-serif; margin: 32px 0 0; }
+  .chart-note { font-size: .9rem; margin-bottom: 12px; }
+  .today { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
+  .hero-num { font: 700 4.4rem/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -.03em; }
+  .hero-num small { font-size: 2rem; margin-left: 2px; }
+  .hero-label { font-weight: 700; font-size: 1.1rem; }
+  .delta { margin-top: 2px; font-weight: 700; }
+  .delta.up { color: var(--good-ink); } .delta.down { color: var(--bad-ink); } .delta.same { color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0 0; }
+  .stats div { background: var(--bg); border-radius: 12px; padding: 12px 14px; }
+  .stats dt { color: var(--muted); font-size: .9rem; }
+  .stats dd { margin: 0; font-weight: 700; font-size: 1.2rem; }
+  .chart { position: relative; display: flex; gap: 6px; height: 180px; padding-left: 58px; }
+  .chart.hours { gap: 3px; }
+  .grid { position: absolute; left: 58px; right: 0; border-top: 1px dashed var(--line); }
+  .ylab { position: absolute; left: 0; width: 50px; text-align: right; font-size: .8rem; color: var(--muted); white-space: nowrap; transform: translateY(-50%); }
+  .col { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 6px; cursor: default; }
+  .plot { position: relative; flex: 1; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--muted); }
+  .bar { width: 100%; max-width: 46px; min-height: 3px; border-radius: 4px 4px 0 0; }
+  .bar.good { background: var(--bar-good); } .bar.bad { background: var(--bar-bad); }
+  .col:hover .bar, .col:focus-visible .bar { filter: brightness(1.15); }
+  .val { position: absolute; left: 0; right: 0; text-align: center; font-size: .8rem; font-weight: 700; white-space: nowrap; }
+  .xlab { height: 26px; padding-top: 6px; text-align: center; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  .xlab.today-lab { color: var(--ink); font-weight: 700; }
+  .tip { position: fixed; z-index: 10; background: var(--ink); color: var(--bg); padding: 8px 12px; border-radius: 10px;
+         font-size: .9rem; line-height: 1.4; white-space: pre-line; pointer-events: none; }
+  @media (max-width: 520px) { .stats dd { font-size: 1rem; } .hero-num { font-size: 3.4rem; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -154,6 +185,28 @@
       <p class="done" id="calDone"></p>
     </div>
   </div>
+
+  <section class="panel progress">
+    <h2>Your progress</h2>
+    <p class="muted" id="progEmpty">Your progress shows up here once Slouch Detector has watched you sit for a minute or two.</p>
+    <div id="progBody" hidden>
+      <div class="today">
+        <p class="hero-num"><span id="pctToday"></span><small>%</small></p>
+        <div><p class="hero-label">of today sitting straight</p><p class="delta" id="delta"></p></div>
+      </div>
+      <dl class="stats">
+        <div><dt>Slouched today</dt><dd id="slouchToday"></dd></div>
+        <div><dt>Reminders</dt><dd id="remToday"></dd></div>
+        <div><dt>Time watched</dt><dd id="watchedToday"></dd></div>
+      </dl>
+      <h3>Last 7 days</h3>
+      <p class="muted chart-note">How much of the time you sat straight</p>
+      <div class="chart" id="weekChart"></div>
+      <h3>Today, hour by hour</h3>
+      <p class="muted chart-note">Minutes spent slouching</p>
+      <div class="chart hours" id="hourChart"></div>
+    </div>
+  </section>
 
   <section class="panel settings">
     <div class="row">
@@ -213,6 +266,7 @@
   </footer>
 </main>
 <div class="toast" id="toast" role="status"></div>
+<div class="tip" id="tip" hidden></div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -317,6 +371,116 @@ function nextFrame() {
 frame.onload = () => { $("cam").classList.add("has-frame"); setTimeout(nextFrame, 60); };
 frame.onerror = () => { $("cam").classList.remove("has-frame"); setTimeout(nextFrame, 800); };
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { nextFrame(); refresh(); } });
+
+// ---- progress ----
+const MIN_WATCHED = 60;  // seconds before a day's numbers mean anything
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const watched = d => d ? d.straight + d.slouch : 0;
+const pctStraight = d => watched(d) >= MIN_WATCHED ? Math.round(d.straight / watched(d) * 100) : null;
+function fmtDur(s) {
+  if (s < 60) return "Under 1 min";
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h` + (m % 60 ? ` ${m % 60} min` : "");
+}
+const hourName = h => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" });
+
+// items: {value, x, tip, label?, today?}; value null = no bar
+function drawBars(el, items, max, cls, yLabels) {
+  el.innerHTML =
+    yLabels.map(([v, text]) => {
+      const top = `calc((100% - 26px) * ${1 - v / max})`;
+      return `<div class="grid" style="top:${top}"></div><span class="ylab" style="top:${top}">${text}</span>`;
+    }).join("") +
+    items.map(it => {
+      const h = it.value == null ? 0 : Math.max(0, Math.min(1, it.value / max)) * 100;
+      return `<div class="col" tabindex="0" data-tip="${it.tip}" aria-label="${it.tip.replace(/\n/g, ", ")}">
+        <div class="plot">${it.value == null ? "" : `<div class="bar ${cls}" style="height:${h}%"></div>`}
+          ${it.label ? `<span class="val" style="bottom:calc(${h}% + 4px)">${it.label}</span>` : ""}</div>
+        <div class="xlab${it.today ? " today-lab" : ""}">${it.x}</div></div>`;
+    }).join("");
+}
+
+async function refreshProgress() {
+  let h;
+  try { h = await (await fetch("/history")).json(); } catch { return; }
+  const [y, m, d] = h.today.split("-").map(Number);
+  const dayAt = offset => { const dt = new Date(y, m - 1, d + offset); return { dt, data: h.days[isoDate(dt)] }; };
+  const today = h.days[h.today];
+
+  const hasData = Object.values(h.days).some(day => watched(day) >= MIN_WATCHED);
+  $("progEmpty").hidden = hasData;
+  $("progBody").hidden = !hasData;
+  if (!hasData) return;
+
+  // today vs yesterday
+  const pt = pctStraight(today), py = pctStraight(dayAt(-1).data);
+  $("pctToday").textContent = pt ?? "–";
+  const delta = $("delta");
+  if (pt == null) { delta.className = "delta same"; delta.textContent = "Not enough time watched today yet"; }
+  else if (py == null) { delta.className = "delta same"; delta.textContent = "No data from yesterday to compare"; }
+  else if (pt === py) { delta.className = "delta same"; delta.textContent = "Same as yesterday"; }
+  else {
+    const diff = pt - py;
+    delta.className = "delta " + (diff > 0 ? "up" : "down");
+    delta.textContent = `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} points ${diff > 0 ? "better" : "worse"} than yesterday`;
+  }
+  $("slouchToday").textContent = fmtDur(today?.slouch ?? 0);
+  $("remToday").textContent = today?.reminders ?? 0;
+  $("watchedToday").textContent = fmtDur(watched(today));
+
+  // last 7 days
+  const week = [];
+  for (let i = -6; i <= 0; i++) {
+    const { dt, data } = dayAt(i), p = pctStraight(data);
+    const name = dt.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+    week.push({
+      value: p, today: i === 0,
+      x: i === 0 ? "Today" : dt.toLocaleDateString([], { weekday: "short" }),
+      label: i === 0 && p != null ? `${p}%` : "",
+      tip: p == null ? `${name}\nNot used` : `${name}\n${p}% sitting straight\n${fmtDur(data.slouch)} slouched\n${data.reminders} reminder${data.reminders === 1 ? "" : "s"}`,
+    });
+  }
+  drawBars($("weekChart"), week, 100, "good", [[50, "50%"], [100, "100%"]]);
+
+  // today by hour, from the first hour used (or 8 am) to now
+  const nowHour = new Date().getHours();
+  const mins = (today?.slouch_by_hour ?? Array(24).fill(0)).map((s, hr) => hr <= nowHour ? s / 60 : 0);
+  const firstUsed = mins.findIndex(v => v > 0);
+  const first = firstUsed >= 0 ? Math.min(8, firstUsed) : 8;
+  const top = Math.max(5, Math.ceil(Math.max(...mins) / 5) * 5);
+  const worst = mins.indexOf(Math.max(...mins));
+  const hours = [];
+  for (let hr = first; hr <= Math.max(nowHour, first + 9); hr++) {
+    hours.push({
+      value: mins[hr] > 0 ? mins[hr] : null,
+      x: (hr - first) % 3 === 0 ? hourName(hr) : "",
+      label: hr === worst && mins[hr] >= 1 ? `${Math.round(mins[hr])} min` : "",
+      tip: `${hourName(hr)} – ${hourName((hr + 1) % 24)}\n${hr > nowHour ? "Still to come" : `${Math.round(mins[hr])} min slouched`}`,
+    });
+  }
+  drawBars($("hourChart"), hours, top, "bad", [[top / 2, `${top / 2} min`], [top, `${top} min`]]);
+}
+
+// chart tooltips: hover or keyboard focus on a column
+const tip = $("tip");
+function showTip(e) {
+  const col = e.target.closest?.(".col");
+  if (!col) return;
+  tip.textContent = col.dataset.tip;
+  tip.hidden = false;
+  const r = col.getBoundingClientRect(), t = tip.getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2))}px`;
+  tip.style.top = `${Math.max(8, r.top - t.height - 8)}px`;
+}
+const hideTip = e => { if (e.target.closest?.(".col")) tip.hidden = true; };
+document.addEventListener("mouseover", showTip);
+document.addEventListener("focusin", showTip);
+document.addEventListener("mouseout", hideTip);
+document.addEventListener("focusout", hideTip);
+addEventListener("scroll", () => tip.hidden = true, { passive: true });
+
+refreshProgress();
+setInterval(() => { if (!document.hidden) refreshProgress(); }, 30000);
 
 nextFrame();
 refresh();

@@ -62,6 +62,19 @@ The tray icon shows how you're doing:
 - The **On / Paused** switch at the top of the settings page also pauses it. While paused it doesn't use your camera at all.
 - After **Quit**, start it again from the Start menu or the desktop shortcut.
 
+## Your progress
+
+The settings page also tracks how you're doing:
+
+- **Today:** how much of the time you sat straight, compared with yesterday.
+- **Slouched today, reminders and time watched.**
+- **Last 7 days:** whether you're improving day by day.
+- **Today, hour by hour:** when you slouch the most. For many people it's after lunch.
+
+Hover over (or tab to) any bar to see its numbers. It only counts the time it can actually see you, so breaks, video calls and pauses don't affect your score.
+
+<img src="docs/progress.png" width="640" alt="Progress section: 81% of today sitting straight, 7 points better than yesterday, with a 7-day bar chart and an hour-by-hour chart of minutes spent slouching">
+
 ## Settings
 
 <img src="docs/settings.png" width="640" alt="The settings: camera position, reminder delay, pop-up or ping sound, pickiness, and start with Windows">
@@ -97,7 +110,7 @@ The tray icon shows how you're doing:
 
 ## Privacy
 
-- Video is analysed on your computer and is never saved or uploaded.
+- Video is analysed on your computer and is never saved or uploaded. The progress stats only store totals (minutes straight or slouching, and reminder counts), never pictures.
 - The settings page is only reachable from your own computer.
 - The only internet use is a one-time download of Google's MediaPipe pose model (~9 MB) on first run, plus the fonts on the settings page.
 
@@ -120,7 +133,7 @@ Files:
 | `settings.html` | The settings page |
 | `install.bat` | One-click installer |
 
-Everything the app writes (`settings.json` with your settings and saved posture, the downloaded pose model, the ping sound and the shortcut icon) goes to `%LOCALAPPDATA%\SlouchDetector`, never to the code folder. That way it also works when the code folder is read-only, like in Program Files.
+Everything the app writes (`settings.json` with your settings and saved posture, `history.json` with your daily progress, the downloaded pose model, the ping sound and the shortcut icon) goes to `%LOCALAPPDATA%\SlouchDetector`, never to the code folder. That way it also works when the code folder is read-only, like in Program Files.
 
 For developers:
 
