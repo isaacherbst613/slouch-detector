@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slouch Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #E9EDF1; --panel: #F7F9FA; --line: #CDD5DD; --ink: #1F2A36; --muted: #5B6B7B;
+    --fluid: #C8DC3A; --fluid-deep: #A9BF1F; --amber: #E8A33D; --amber-deep: #C9821B; --off: #B9C3CC;
+    --glass: rgba(255,255,255,.55); --focus: #2F6FDE;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1A2027; --panel: #232B34; --line: #36414D; --ink: #E7ECF1; --muted: #9DABB8;
+      --fluid: #B5CC2E; --fluid-deep: #93A81A; --amber: #E8A33D; --amber-deep: #B87612; --off: #4A5560;
+      --glass: rgba(255,255,255,.18); --focus: #7FA8F5;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.5 "Atkinson Hyperlegible", system-ui, sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1, h2, .headline { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 700; margin: 0; }
+  h1 { font-size: 1.15rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.3rem; margin-bottom: 4px; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+  /* top bar */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 34px; height: 18px; }
+
+  /* switches */
+  .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 700; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .track { width: 52px; height: 30px; border-radius: 15px; background: var(--off); position: relative; transition: background .2s; flex: none; }
+  .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + .track { background: var(--fluid-deep); }
+  .switch input:checked + .track::after { transform: translateX(22px); }
+  .switch input:focus-visible + .track { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+  /* the level */
+  .hero { text-align: center; padding: 40px 0 32px; }
+  .vial {
+    position: relative; height: 92px; max-width: 620px; margin: 0 auto;
+    border-radius: 46px; border: 5px solid var(--ink);
+    background: linear-gradient(180deg, var(--fluid) 0%, var(--fluid-deep) 100%);
+    box-shadow: inset 0 10px 0 var(--glass);
+    transition: background .4s;
+    overflow: hidden;
+  }
+  .vial.bad { background: linear-gradient(180deg, var(--amber) 0%, var(--amber-deep) 100%); }
+  .vial.idle { background: linear-gradient(180deg, var(--off) 0%, var(--off) 100%); }
+  .tick { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--ink); opacity: .75; }
+  .tick.l { left: calc(32% - 2px); } .tick.r { left: calc(68% - 2px); }
+  .bubble {
+    position: absolute; top: 50%; left: 50%; width: 22%; max-width: 120px; height: 52px;
+    border-radius: 50%; background: radial-gradient(ellipse at 40% 30%, #fff 0%, rgba(255,255,255,.85) 45%, rgba(255,255,255,.55) 100%);
+    transform: translate(calc(-50% + var(--x, 0px)), -50%);
+    transition: transform .5s cubic-bezier(.3,1.4,.5,1), opacity .3s;
+  }
+  .vial.idle .bubble { opacity: .6; }
+  .headline { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.1; margin-top: 28px; letter-spacing: -.02em; }
+  .sub { margin-top: 8px; font-size: 1.1rem; }
+
+  /* camera + calibrate */
+  .pair { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 720px) { .pair { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  .cam { position: relative; aspect-ratio: 4 / 3; border-radius: 18px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); }
+  .cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cam.mirror img { transform: scaleX(-1); }
+  .cam .empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--muted); }
+  .cam.has-frame .empty { display: none; }
+  .calibrate.attention { border: 3px solid var(--fluid-deep); }
+  .calibrate p { margin: 6px 0 18px; }
+  .big-btn {
+    position: relative; overflow: hidden; width: 100%; padding: 16px 20px; border: 0; border-radius: 14px;
+    background: var(--ink); color: var(--bg); font: 700 1.05rem "Atkinson Hyperlegible", system-ui, sans-serif; cursor: pointer;
+  }
+  .big-btn:disabled { cursor: progress; }
+  .big-btn .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--fluid-deep); transition: width .2s; }
+  .big-btn span { position: relative; }
+  .done { margin-top: 10px; min-height: 1.5em; color: var(--muted); }
+
+  /* settings */
+  .settings { margin-top: 20px; }
+  .row { padding: 20px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; padding-top: 8px; }
+  .row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .row-head strong { font-size: 1.05rem; }
+  .value { font-weight: 700; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile { cursor: pointer; }
+  .tile input { position: absolute; opacity: 0; }
+  .tile span { display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px solid var(--line); border-radius: 14px; font-weight: 700; }
+  .tile svg { width: 44px; height: 44px; flex: none; }
+  .tiles.three { grid-template-columns: repeat(3, 1fr); }
+  .tiles.three span { justify-content: center; text-align: center; }
+  .small-btn { font: 700 .95rem "Atkinson Hyperlegible", system-ui, sans-serif; padding: 6px 14px; border-radius: 10px;
+               border: 2px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; }
+  .tile input:checked + span { border-color: var(--ink); background: var(--bg); }
+  .tile input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--fluid-deep); height: 28px; }
+  .ends { display: flex; justify-content: space-between; color: var(--muted); font-size: .9rem; }
+  details summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+  details .row:first-of-type { padding-top: 16px; }
+  select { font: inherit; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  footer { margin-top: 28px; color: var(--muted); font-size: .95rem; display: flex; gap: 10px; align-items: flex-start; }
+  footer svg { width: 30px; height: 16px; flex: none; margin-top: 4px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--ink); color: var(--bg);
+           padding: 10px 18px; border-radius: 12px; font-weight: 700; transition: opacity .2s, transform .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="logo" viewBox="0 0 64 34"><rect x="2" y="2" width="60" height="30" rx="15" fill="#B5CC2E" stroke="currentColor" stroke-width="4"/><ellipse cx="32" cy="17" rx="10" ry="8" fill="#fff"/></symbol>
+</svg>
+
+<main>
+  <header>
+    <div class="brand"><svg aria-hidden="true"><use href="#logo"/></svg><h1>Slouch Detector</h1></div>
+    <label class="switch"><input type="checkbox" id="onoff" checked><span class="track"></span><span id="onoffLabel">On</span></label>
+  </header>
+
+  <section class="hero" aria-live="polite">
+    <div class="vial idle" id="vial" aria-hidden="true">
+      <div class="tick l"></div><div class="tick r"></div><div class="bubble" id="bubble"></div>
+    </div>
+    <p class="headline" id="headline">Starting up…</p>
+    <p class="sub muted" id="sub">This takes a few seconds.</p>
+  </section>
+
+  <div class="pair">
+    <div class="cam" id="cam">
+      <img id="frame" alt="What your camera sees, with dots on your head and shoulders">
+      <p class="empty" id="camEmpty">Your camera picture shows up here.</p>
+    </div>
+
+    <div class="panel calibrate" id="calPanel">
+      <h2>Your good posture</h2>
+      <p class="muted">Sit up tall with your shoulders relaxed and look at your screen as you normally would. Then press the button and hold still for a moment.</p>
+      <button class="big-btn" id="cal"><span class="fill" id="calFill"></span><span id="calText">Save my good posture</span></button>
+      <p class="done" id="calDone"></p>
+    </div>
+  </div>
+
+  <section class="panel settings">
+    <div class="row">
+      <div class="row-head"><strong>Where is your camera?</strong></div>
+      <div class="tiles">
+        <label class="tile"><input type="radio" name="view" value="front">
+          <span><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <circle cx="22" cy="14" r="7"/><path d="M8 40c0-8 6-13 14-13s14 5 14 13"/></svg>In front of me</span></label>
+        <label class="tile"><input type="radio" name="view" value="side">
+          <span><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <circle cx="24" cy="12" r="7"/><path d="M18 40V26c0-4 3-6 6-6h2"/><path d="M18 31h12v9"/></svg>Beside me</span></label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="row-head"><strong><label for="wait">Remind me after slouching for</label></strong><span class="value" id="waitValue"></span></div>
+      <input type="range" id="wait" min="0" max="9" step="1">
+    </div>
+
+    <div class="row">
+      <div class="row-head"><strong>How should it remind you?</strong><button class="small-btn" id="tryAlert">Try it</button></div>
+      <div class="tiles three">
+        <label class="tile"><input type="radio" name="alert" value="popup"><span>Pop-up message</span></label>
+        <label class="tile"><input type="radio" name="alert" value="sound"><span>Ping sound</span></label>
+        <label class="tile"><input type="radio" name="alert" value="both"><span>Both</span></label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="row-head"><strong><label for="strict">How picky should it be?</label></strong></div>
+      <input type="range" id="strict" min="4" max="30" step="1">
+      <div class="ends"><span>Only big slumps</span><span>Even small slumps</span></div>
+    </div>
+
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="autostart"><span class="track"></span>Start when my computer starts</label>
+    </div>
+
+    <details class="row">
+      <summary>More options</summary>
+      <div class="row">
+        <div class="row-head"><strong><label for="camera">Which camera</label></strong>
+          <select id="camera"><option value="0">Camera 1</option><option value="1">Camera 2</option><option value="2">Camera 3</option><option value="3">Camera 4</option></select></div>
+        <p class="muted">Only matters if you have more than one camera.</p>
+      </div>
+      <div class="row">
+        <div class="row-head"><strong><label for="interval">Check my posture every</label></strong><span class="value" id="intervalValue"></span></div>
+        <input type="range" id="interval" min="1" max="30" step="1">
+        <p class="muted">Applies while this page is closed. Longer gaps leave the camera free for video calls more often.</p>
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <svg aria-hidden="true"><use href="#logo"/></svg>
+    <p>You can close this page. Slouch Detector keeps watching from the little level icon near the clock (click the ^ arrow if you don't see it). Click the icon to come back here.</p>
+  </footer>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const WAITS = [10, 15, 20, 30, 45, 60, 90, 120, 180, 300];
+const post = (path, body = {}) =>
+  fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const duration = s => s < 60 ? `${s} seconds` : s === 60 ? "1 minute" : `${+(s / 60).toFixed(1)} minutes`;
+
+let toastTimer;
+function toast(msg) {
+  $("toast").textContent = msg;
+  $("toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 1800);
+}
+
+async function save(changes, msg = "Saved") {
+  const res = await post("/settings", changes);
+  toast(res.ok ? msg : "That setting wasn't saved. Try again.");
+  filled = false;
+  refresh();
+}
+
+// settings controls
+document.querySelectorAll("input[name=view]").forEach(r => r.onchange = () =>
+  save({ view: r.value }, "Saved. Now save your good posture again from this angle."));
+document.querySelectorAll("input[name=alert]").forEach(r => r.onchange = () => save({ alert: r.value }));
+$("tryAlert").onclick = () => post("/test-alert");
+$("wait").oninput =() => $("waitValue").textContent = duration(WAITS[$("wait").value]);
+$("wait").onchange = () => save({ seconds: WAITS[$("wait").value] });
+$("strict").onchange = () => save({ tolerance: 34 - $("strict").value });  // right = picky = small tolerance
+$("interval").oninput = () => $("intervalValue").textContent = duration(+$("interval").value);
+$("interval").onchange = () => save({ interval: +$("interval").value });
+$("camera").onchange = () => save({ camera: +$("camera").value }, "Saved. Now save your good posture again.");
+$("autostart").onchange = async () => {
+  await post("/autostart", { on: $("autostart").checked });
+  toast($("autostart").checked ? "It will start with your computer" : "It won't start with your computer");
+};
+$("onoff").onchange = async () => { await post("/pause", { paused: !$("onoff").checked }); refresh(); };
+$("cal").onclick = async () => { $("calDone").textContent = ""; await post("/calibrate"); refresh(); };
+
+const COPY = {
+  "Paused": ["Paused", "Slouch Detector isn't using your camera. Switch it on when you're ready."],
+  "Not calibrated": ["Show it your good posture", "Sit up tall, then press Save my good posture."],
+  "Can't see you": ["Can't see you", "Make sure your head and shoulders are in the camera picture."],
+  "Camera unavailable": ["Camera is busy", "Another app may be using it. Checking starts again when it's free."],
+  "Hold still…": ["Hold still…", "Saving your good posture."],
+  "Sitting straight": ["Sitting straight", "Your posture matches the one you saved."],
+};
+
+let filled = false, wasCalibrating = false;
+async function refresh() {
+  let s;
+  try { s = await (await fetch("/state")).json(); }
+  catch {
+    $("headline").textContent = "Slouch Detector is off";
+    $("sub").textContent = "Open it from the Start menu or your desktop to turn it back on.";
+    $("vial").className = "vial idle";
+    return;
+  }
+
+  if (!filled) {
+    document.querySelector(`input[name=view][value=${s.view}]`).checked = true;
+    document.querySelector(`input[name=alert][value=${s.alert}]`).checked = true;
+    const w = WAITS.reduce((best, v, i) => Math.abs(v - s.seconds) < Math.abs(WAITS[best] - s.seconds) ? i : best, 0);
+    $("wait").value = w; $("wait").oninput();
+    $("strict").value = 34 - s.tolerance;
+    $("interval").value = s.interval; $("interval").oninput();
+    $("camera").value = s.camera;
+    $("autostart").checked = s.autostart;
+    $("cam").classList.toggle("mirror", s.view === "front");
+    filled = true;
+  }
+
+  $("onoff").checked = !s.paused;
+  $("onoffLabel").textContent = s.paused ? "Paused" : "On";
+
+  const [head, sub] = s.status === "Slouching"
+    ? ["Slouching", `Reminder in ${Math.max(0, Math.ceil(s.seconds - s.slouching_for))} seconds unless you sit up.`]
+    : COPY[s.status] || [s.status, ""];
+  $("headline").textContent = head;
+  $("sub").textContent = sub;
+
+  $("vial").className = "vial " + (s.level || "idle");
+  const r = s.ratio == null ? 0 : Math.max(-1.6, Math.min(1.6, s.ratio));
+  $("bubble").style.setProperty("--x", `${r * $("vial").clientWidth * 0.18}px`);
+
+  $("cal").disabled = s.calibrating || s.paused;
+  $("calFill").style.width = `${(s.calibrating ? s.progress : 0) * 100}%`;
+  $("calText").textContent = s.calibrating ? "Hold still…" : s.baseline == null ? "Save my good posture" : "Save my good posture again";
+  $("calPanel").classList.toggle("attention", s.baseline == null && !s.paused);
+  if (wasCalibrating && !s.calibrating) $("calDone").textContent = "Saved. You're all set.";
+  wasCalibrating = s.calibrating;
+}
+
+// Camera preview: fetch the next frame as soon as the last one arrives, only while the page is visible.
+const frame = $("frame");
+function nextFrame() {
+  if (document.hidden) return;
+  frame.src = "/frame.jpg?" + Date.now();
+}
+frame.onload = () => { $("cam").classList.add("has-frame"); setTimeout(nextFrame, 60); };
+frame.onerror = () => { $("cam").classList.remove("has-frame"); setTimeout(nextFrame, 800); };
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { nextFrame(); refresh(); } });
+
+nextFrame();
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 400);
+</script>
+</html>

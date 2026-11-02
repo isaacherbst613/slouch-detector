@@ -1,0 +1,7 @@
+# personal settings + calibration
+settings.json
+# generated / downloaded on first run
+pose_landmarker_full.task
+ping.wav
+slouch.ico
+__pycache__/
