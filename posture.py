@@ -7,6 +7,7 @@ Debug:        python posture.py       (prints each reading)
 import collections
 import json
 import math
+import os
 import statistics
 import struct
 import subprocess
@@ -23,12 +24,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
+# Everything we write goes to the user's AppData, so the code folder can be read-only (e.g. Program Files)
+DATA = Path(os.environ["LOCALAPPDATA"]) / "SlouchDetector"
+DATA.mkdir(parents=True, exist_ok=True)
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
-MODEL = HERE / "pose_landmarker_full.task"
-SETTINGS = HERE / "settings.json"
+MODEL = DATA / "pose_landmarker_full.task"
+SETTINGS = DATA / "settings.json"
 PAGE = HERE / "settings.html"
-ICON = HERE / "slouch.ico"
-PING = HERE / "ping.wav"
+ICON = DATA / "slouch.ico"
+PING = DATA / "ping.wav"
 PORT = 8765
 URL = f"http://127.0.0.1:{PORT}"  # not "localhost": Windows tries IPv6 first and each request stalls ~200 ms
 ALLOWED_HOSTS = {f"localhost:{PORT}", f"127.0.0.1:{PORT}"}

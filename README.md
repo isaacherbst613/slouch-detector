@@ -32,7 +32,7 @@ You need:
 Then:
 
 1. On this page, click the green **Code** button, then **Download ZIP**.
-2. Unzip it somewhere it can stay, for example `Documents\Slouch Detector`. The shortcuts point to this folder, so don't run it from Downloads and then delete the folder.
+2. Unzip it somewhere it can stay, for example `Documents` or `Program Files`. The shortcuts point to this folder, so don't run it from Downloads and then delete the folder.
 3. Double-click **`install.bat`**. It installs what's needed (this takes a few minutes the first time), adds **Slouch Detector** to your Start menu and desktop, and starts it.
 
 The settings page opens in your browser.
@@ -92,7 +92,8 @@ The tray icon shows how you're doing:
 
 1. On the settings page, turn off **Start when my computer starts**.
 2. Right-click the tray icon and choose **Quit**.
-3. Delete the **Slouch Detector** shortcuts from your desktop and Start menu, then delete the folder.
+3. Delete the **Slouch Detector** shortcuts from your desktop and Start menu, then delete the folder you unzipped.
+4. To also remove your saved settings, press **Win + R**, type `%LOCALAPPDATA%\SlouchDetector`, press Enter, and delete that folder.
 
 ## Privacy
 
@@ -118,7 +119,8 @@ Files:
 | `posture.py` | The app: camera, posture scoring, tray icon, and a small local web server for the settings page |
 | `settings.html` | The settings page |
 | `install.bat` | One-click installer |
-| `settings.json` | Your settings and saved posture. Created on first run, not in git. |
+
+Everything the app writes (`settings.json` with your settings and saved posture, the downloaded pose model, the ping sound and the shortcut icon) goes to `%LOCALAPPDATA%\SlouchDetector`, never to the code folder. That way it also works when the code folder is read-only, like in Program Files.
 
 For developers:
 
